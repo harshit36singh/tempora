@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/weather_model.dart';
 import '../services/weather_service.dart';
 import '../widgets/weather_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,7 +14,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final WeatherService _weatherService = WeatherService();
-  WeatherData? _weatherData;
+  final List<WeatherData> _cities = [];
+  int _currentCityIndex = 0;
   bool _isLoading = true;
   String? _error;
   final TextEditingController _searchController = TextEditingController();
@@ -21,8 +23,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadWeather();
+  _initApp();
   }
+  Future<void> _initApp() async {
+  try {
+    await _loadSavedCities();
+
+    if (_cities.isEmpty) {
+      await _loadWeather();
+    }
+  } catch (e) {
+    _error = e.toString();
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    _isLoading = false;
+  });
+}
 
   Future<void> _loadWeather() async {
     setState(() {
@@ -33,7 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final weather = await _weatherService.getWeatherByLocation();
       setState(() {
-        _weatherData = weather;
+        
+        _cities.add(weather);
+        _currentCityIndex = 0;
         _isLoading = false;
       });
     } catch (e) {
@@ -43,6 +64,31 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+  Future<void> _savecities()async{
+    final pref=await SharedPreferences.getInstance();
+    final citynames=_cities.map((c)=>c.cityName).toList();
+    await pref.setStringList("saved_cities", citynames);
+  }
+ Future<void> _loadSavedCities() async {
+  final prefs = await SharedPreferences.getInstance();
+  final cityNames = prefs.getStringList('saved_cities') ?? [];
+
+  final loadedCities = <WeatherData>[];
+
+  for (final city in cityNames) {
+    try {
+      final weather = await _weatherService.getWeatherByCity(city);
+      loadedCities.add(weather);
+    } catch (_) {}
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    _cities.addAll(loadedCities);
+    _currentCityIndex = 0;
+  });
+}
 
   Future<void> _searchCity(String cityName) async {
     if (cityName.isEmpty) return;
@@ -55,9 +101,12 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final weather = await _weatherService.getWeatherByCity(cityName);
       setState(() {
-        _weatherData = weather;
+        _cities.add(weather);
+        _currentCityIndex = _cities.length - 1;
         _isLoading = false;
       });
+      await _savecities();
+      
     } catch (e) {
       setState(() {
         _error = 'City not found';
@@ -68,8 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = _weatherData?.getThemeColor() ?? const Color(0xFFE8E8E8);
-    final isDark = _weatherData?.isDarkTheme() ?? false;
+    final currentCity =
+    _cities.isNotEmpty ? _cities[_currentCityIndex] : null;
+ final backgroundColor =
+    currentCity?.getThemeColor() ?? const Color(0xFFE8E8E8);
+    final isDark = currentCity?.isDarkTheme() ?? false;
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
@@ -77,9 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 800),
         curve: Curves.easeInOut,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-        ),
+        decoration: BoxDecoration(color: backgroundColor),
         child: SafeArea(
           child: Column(
             children: [
@@ -92,14 +142,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       )
                     : _error != null
-                        ? _buildError(textColor)
-                        : _weatherData != null
-                            ? WeatherWidget(
-                                weatherData: _weatherData!,
-                                isDark: isDark,
-                                textColor: textColor,
-                              )
-                            : const SizedBox.shrink(),
+                    ? _buildError(textColor)
+                    : _cities.isNotEmpty
+                    ? WeatherWidget(
+                        cities: _cities,
+                        initialPage: _currentCityIndex,
+                        isDark: isDark,
+                        textColor: textColor,
+                        onPageChanged: (index){
+                          setState(() {
+                            _currentCityIndex=index;
+                          });
+                        },
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
@@ -114,12 +170,32 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            icon: Icon(Icons.menu, color: textColor),
-            onPressed: () {},
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: Material(
+              color: Colors.transparent,
+              child: InkResponse(
+                radius: 28,
+                onTap: () {
+                  debugPrint('Menu tapped');
+                },
+                child: Center(
+                  child: Image.asset(
+                    'assets/inappicon.png',
+                    width: 45,
+                    height: 45,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ),
           ),
+
+          // CITY NAME
           Text(
-            _weatherData?.cityName.toUpperCase() ?? 'LOADING',
+            _cities.isNotEmpty?
+            _cities[_currentCityIndex].cityName.toUpperCase():'LOADING',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -127,8 +203,10 @@ class _HomeScreenState extends State<HomeScreen> {
               color: textColor,
             ),
           ).animate().fadeIn(duration: 400.ms),
+
+          // SEARCH BUTTON (keep IconButton if you want)
           IconButton(
-            icon: Icon(Icons.search, color: textColor),
+            icon: Icon(Icons.add, color: textColor),
             onPressed: () => _showSearchDialog(isDark, textColor),
           ),
         ],
@@ -141,7 +219,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: textColor.withOpacity(0.5)),
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: textColor.withOpacity(0.5),
+          ),
           const SizedBox(height: 16),
           Text(
             _error ?? 'An error occurred',
@@ -165,43 +247,81 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showSearchDialog(bool isDark, Color textColor) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => Dialog(
         backgroundColor: isDark ? const Color(0xFF2A2E4D) : Colors.white,
-        title: Text(
-          'Search City',
-          style: TextStyle(color: textColor),
+
+        // 🔲 SQUARE CORNERS
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── TITLE ───────────────────────────
+              Text(
+                'Search City',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ─── INPUT ───────────────────────────
+              TextField(
+                controller: _searchController,
+                style: TextStyle(color: textColor),
+                cursorColor: textColor,
+                decoration: InputDecoration(
+                  hintText: 'Enter city name',
+                  hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
+
+                  // FLAT INPUT — NO CURVES
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: textColor.withOpacity(0.3)),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: textColor),
+                  ),
+                ),
+                onSubmitted: (value) {
+                  Navigator.pop(context);
+                  _searchCity(value);
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // ─── ACTIONS ─────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: textColor.withOpacity(0.7),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 16),
+                  TextButton(
+                    style: TextButton.styleFrom(foregroundColor: textColor),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _searchCity(_searchController.text);
+                    },
+                    child: const Text('Search'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        content: TextField(
-          controller: _searchController,
-          style: TextStyle(color: textColor),
-          decoration: InputDecoration(
-            hintText: 'Enter city name',
-            hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: textColor.withOpacity(0.3)),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: textColor),
-            ),
-          ),
-          onSubmitted: (value) {
-            Navigator.pop(context);
-            _searchCity(value);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: textColor.withOpacity(0.7))),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _searchCity(_searchController.text);
-            },
-            child: Text('Search', style: TextStyle(color: textColor)),
-          ),
-        ],
       ),
     );
   }

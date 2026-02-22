@@ -2,43 +2,91 @@ import 'dart:ui';
 
 class WeatherData {
   final String cityName;
+
+  // Core weather
   final double temperature;
-  final String weatherMain;
-  final String weatherDescription;
   final double feelsLike;
   final int humidity;
-  final double windSpeed;
   final int pressure;
+
+  // Weather description
+  final String weatherMain;
+  final String weatherDescription;
+
+  // Wind
+  final double windSpeed;
+
+  // Extras (NEW)
+  final int cloudiness;      // %
+  final int visibility;      // meters
+  final DateTime sunrise;
+  final DateTime sunset;
+
+  // Meta
   final DateTime dateTime;
-  final int precipitation;
+  final int precipitation; // mm (if available)
 
   WeatherData({
     required this.cityName,
     required this.temperature,
-    required this.weatherMain,
-    required this.weatherDescription,
     required this.feelsLike,
     required this.humidity,
-    required this.windSpeed,
     required this.pressure,
+    required this.weatherMain,
+    required this.weatherDescription,
+    required this.windSpeed,
+    required this.cloudiness,
+    required this.visibility,
+    required this.sunrise,
+    required this.sunset,
     required this.dateTime,
     required this.precipitation,
   });
 
+  // ─────────────────────────────────────────────
+  // JSON PARSER
+  // ─────────────────────────────────────────────
   factory WeatherData.fromJson(Map<String, dynamic> json) {
     return WeatherData(
       cityName: json['name'] ?? 'Unknown',
+
       temperature: (json['main']['temp'] as num).toDouble(),
-      weatherMain: json['weather'][0]['main'] ?? 'Clear',
-      weatherDescription: json['weather'][0]['description'] ?? '',
       feelsLike: (json['main']['feels_like'] as num).toDouble(),
       humidity: json['main']['humidity'] ?? 0,
-      windSpeed: (json['wind']['speed'] as num).toDouble(),
       pressure: json['main']['pressure'] ?? 0,
-      dateTime: DateTime.fromMillisecondsSinceEpoch(json['dt'] * 1000),
-      precipitation: json['rain'] != null ? (json['rain']['1h'] ?? 0) : 0,
+
+      weatherMain: json['weather'][0]['main'] ?? 'Clear',
+      weatherDescription: json['weather'][0]['description'] ?? '',
+
+      windSpeed: (json['wind']['speed'] as num).toDouble(),
+
+      cloudiness: json['clouds']?['all'] ?? 0,
+      visibility: json['visibility'] ?? 0,
+
+      sunrise: DateTime.fromMillisecondsSinceEpoch(
+        (json['sys']['sunrise'] ?? 0) * 1000,
+        isUtc: true,
+      ).toLocal(),
+
+      sunset: DateTime.fromMillisecondsSinceEpoch(
+        (json['sys']['sunset'] ?? 0) * 1000,
+        isUtc: true,
+      ).toLocal(),
+
+      dateTime: DateTime.fromMillisecondsSinceEpoch(
+        (json['dt'] ?? 0) * 1000,
+        isUtc: true,
+      ).toLocal(),
+
+      precipitation: json['rain'] != null
+          ? (json['rain']['1h'] ?? 0).round()
+          : 0,
     );
   }
+
+  // ─────────────────────────────────────────────
+  // UI HELPERS
+  // ─────────────────────────────────────────────
 
   String getWeatherCondition() {
     if (weatherMain.contains('Rain') || weatherMain.contains('Drizzle')) {
@@ -56,8 +104,7 @@ class WeatherData {
   }
 
   Color getThemeColor() {
-    final condition = getWeatherCondition();
-    switch (condition) {
+    switch (getWeatherCondition()) {
       case 'Sunny':
         return const Color(0xFFFDD835);
       case 'Rainy':

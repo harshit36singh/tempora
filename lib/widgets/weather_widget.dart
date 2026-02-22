@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../models/weather_model.dart';
-
+import 'swipeup.dart';
 class WeatherWidget extends StatefulWidget {
-  final WeatherData weatherData;
+ final List<WeatherData> cities;
+final int initialPage;
   final bool isDark;
   final Color textColor;
+  final ValueChanged<int> onPageChanged;
 
   const WeatherWidget({
     super.key,
-    required this.weatherData,
+    required this.cities,
+    required this.initialPage,
+    required this.onPageChanged,
     required this.isDark,
     required this.textColor,
   });
@@ -20,40 +24,67 @@ class WeatherWidget extends StatefulWidget {
 }
 
 class _WeatherWidgetState extends State<WeatherWidget> {
-  final PageController _pageController = PageController();
+  int _verticalPageIndex = 0;
+ late final PageController _pageController;
   int _currentPage = 0;
+  @override
+  void initState() {
+    super.initState();
+    _currentPage=widget.initialPage;
+    _pageController=PageController(initialPage: widget.initialPage);
+  }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final height = size.height;
-    final width = size.width;
     return Column(
       children: [
         Expanded(
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-            },
-            children: [
-              _buildMainWeatherView(height),
-              _buildDetailedView(),
-              _buildWidgetView(),
-            ],
-          ),
-        ),
+  child: PageView.builder(
+    controller: _pageController,
+    itemCount: widget.cities.length,
+    onPageChanged: (index) {
+      setState(() {_currentPage = index;
+      
+      });
+      widget.onPageChanged(index);
+    },
+    itemBuilder: (context, index) {
+      final city = widget.cities[index];
+
+     return Stack(
+  children: [
+    PageView(
+      scrollDirection: Axis.vertical,
+      onPageChanged: (index){
+        setState(() {
+          _verticalPageIndex = index;
+        });
+      },
+      children: [
+        _buildMainWeatherView(height, city),
+        _buildDetailedView(city),
+      ],
+    ),
+    SwipeUpHint(
+    isVisible: _verticalPageIndex == 0,
+      color: widget.textColor,
+    ),
+  ],
+);
+    },
+  ),
+),
         _buildPageIndicator(),
         SizedBox(height: height * 0.025),
       ],
     );
   }
 
-  Widget _buildMainWeatherView(double height) {
-    final day = DateFormat('EEEE').format(widget.weatherData.dateTime);
-    final date = DateFormat('dd MMMM').format(widget.weatherData.dateTime);
+  Widget _buildMainWeatherView(double height,WeatherData weatherData) {
+    final day = DateFormat('EEEE').format(weatherData.dateTime);
+    final date = DateFormat('dd MMMM').format(weatherData.dateTime);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -89,7 +120,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           ).animate().fadeIn(duration: 400.ms, delay: 1000.ms),
           SizedBox(height: height * 0.09),
           Text(
-                '${widget.weatherData.temperature.round()}°',
+                '${weatherData.temperature.round()}°',
                 style: TextStyle(
                   fontSize: 140,
                   fontWeight: FontWeight.w300,
@@ -109,8 +140,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           SizedBox(height: height * 0.01),
 
           // Weather condition
-          Text(
-            widget.weatherData.getWeatherCondition(),
+          Text(weatherData.getWeatherCondition(),
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w400,
@@ -134,13 +164,13 @@ class _WeatherWidgetState extends State<WeatherWidget> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildInfoItem(
-                '${widget.weatherData.temperature.round()}°C',
-                'Feels like ${widget.weatherData.feelsLike.round()}°C',
+                '${weatherData.temperature.round()}°C',
+                 weatherData.weatherDescription,
                 height
               ),
               _buildInfoItem(
-                '${widget.weatherData.humidity}%',
-                '${widget.weatherData.windSpeed.round()} km/h Wind',
+                '${weatherData.humidity}%',
+                '${weatherData.windSpeed.round()} km/h Wind',
                 height
               ),
             ],
@@ -150,189 +180,149 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     );
   }
 
-  Widget _buildDetailedView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20),
-          Text(
-            'Today',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w400,
-              color: widget.textColor,
-            ),
+Widget _buildDetailedView(WeatherData weatherData) {
+  final weather = weatherData;
+  return SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Today',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w400,
+            color: widget.textColor,
           ),
-          Text(
-            DateFormat('E, dd MMM').format(widget.weatherData.dateTime),
-            style: TextStyle(
-              fontSize: 16,
-              color: widget.textColor.withOpacity(0.6),
-            ),
+        ),
+        Text(
+          DateFormat('E, dd MMM').format(weather.dateTime),
+          style: TextStyle(
+            fontSize: 16,
+            color: widget.textColor.withOpacity(0.6),
           ),
+        ),
+        const SizedBox(height: 25),
+        Container(
+          width: double.infinity,
+          height: 4,
+          color: widget.textColor,
+        ),
 
-          const SizedBox(height: 8),
-          Container(
-            width: 80,
-            height: 2,
-            color: widget.textColor.withOpacity(0.2),
-          ),
+        const SizedBox(height: 48),
 
-          const SizedBox(height: 60),
-
-          // Rain probability
-          Text(
-            '${widget.weatherData.humidity}%',
-            style: TextStyle(
-              fontSize: 100,
-              fontWeight: FontWeight.w600,
-              color: widget.textColor,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Rain probability',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w400,
-              color: widget.textColor.withOpacity(0.7),
-            ),
-          ),
-
-          const SizedBox(height: 60),
-
-          Container(
-            width: double.infinity,
+        Text(
+          '${weather.humidity}%',
+          style: TextStyle(
+            fontSize: 96,
+            fontWeight: FontWeight.w600,
+            color: widget.textColor,
             height: 1,
-            color: widget.textColor.withOpacity(0.15),
           ),
-
-          const SizedBox(height: 24),
-
-          // Weather details
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${widget.weatherData.temperature.round()}°C',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: widget.textColor,
-                    ),
-                  ),
-                  Text(
-                    'Feels like ${widget.weatherData.feelsLike.round()}°C',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: widget.textColor.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${widget.weatherData.windSpeed.round()} km/h',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: widget.textColor,
-                    ),
-                  ),
-                  Text(
-                    'Light wind',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: widget.textColor.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Humidity',
+          style: TextStyle(
+            fontSize: 18,
+            color: widget.textColor.withOpacity(0.7),
           ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 600.ms);
-  }
+        ),
 
-  Widget _buildWidgetView() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        children: [
-          const SizedBox(height: 40),
-          Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: widget.isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.white.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(32),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${weather.temperature.round()}°C',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: widget.textColor,
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.weatherData.cityName,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w400,
-                        color: widget.textColor.withOpacity(0.6),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '${widget.weatherData.humidity}%',
-                      style: TextStyle(
-                        fontSize: 72,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textColor,
-                        height: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Chance of rain',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                        color: widget.textColor.withOpacity(0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Container(
-                      width: double.infinity,
-                      height: 1,
-                      color: widget.textColor.withOpacity(0.15),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '${widget.weatherData.temperature.round()}°C',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                        color: widget.textColor,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Feels like ${weather.feelsLike.round()}°C',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.textColor.withOpacity(0.6),
+                  ),
                 ),
-              )
-              .animate()
-              .fadeIn(duration: 600.ms)
-              .scale(begin: const Offset(0.95, 0.95), duration: 500.ms),
-        ],
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${weather.windSpeed.round()} km/h',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: widget.textColor,
+                  ),
+                ),
+                Text(
+                  weather.weatherDescription,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.textColor.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 32),
+        Divider(color: widget.textColor, thickness: 4),
+        const SizedBox(height: 24),
+
+        Wrap(
+          spacing: 24,
+          runSpacing: 20,
+          children: [
+            _detailItem('Clouds', '${weather.cloudiness}%'),
+            _detailItem('Pressure', '${weather.pressure} hPa'),
+            _detailItem('Visibility', '${weather.visibility ~/ 1000} km'),
+            _detailItem(
+              'Sunrise',
+              DateFormat('HH:mm').format(weather.sunrise),
+            ),
+            _detailItem(
+              'Sunset',
+              DateFormat('HH:mm').format(weather.sunset),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ).animate().fadeIn(duration: 600.ms);
+}
+Widget _detailItem(String title, String value) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-    );
-  }
+      const SizedBox(height: 4),
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    ],
+  );
+}
 
   Widget _buildInfoItem(String title, String subtitle,double height) {
     return Column(
@@ -361,10 +351,10 @@ class _WeatherWidgetState extends State<WeatherWidget> {
   Widget _buildPageIndicator() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
+      children: List.generate(widget.cities.length, (index) {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: _currentPage == index ? 20 : 6,
+          width: _currentPage == index ? 45 : 6,
           height: 6,
           decoration: BoxDecoration(
             color: _currentPage == index
