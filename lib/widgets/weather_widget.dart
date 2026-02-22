@@ -38,6 +38,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final height = size.height;
+    final width=size.width;
+    final h = height / 812; 
+    final w = width / 375;
     return Column(
       children: [
         Expanded(

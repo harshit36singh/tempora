@@ -25,6 +25,62 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
   _initApp();
   }
+  
+  LinearGradient getWeatherDialogGradient(WeatherData? weather, bool isDark) {
+  final condition = weather?.getWeatherCondition() ?? 'Clear';
+
+  switch (condition) {
+    case 'Sunny':
+      return const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFF3C0),
+          Color(0xFFFFE082),
+        ],
+      );
+
+    case 'Rainy':
+    case 'Cloudy':
+      return const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFE6E6E6),
+          Color(0xFFCBCBCB),
+        ],
+      );
+
+    case 'Stormy':
+      return const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF2A2E4D),
+          Color(0xFF1C1F36),
+        ],
+      );
+
+    case 'Snowy':
+      return const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFF5FAFF),
+          Color(0xFFE3F2FD),
+        ],
+      );
+
+    default:
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [const Color(0xFF2A2E4D), const Color(0xFF1F223A)]
+            : [const Color(0xFFF7F7F7), const Color(0xFFEDEDED)],
+      );
+  }
+}
   Future<void> _initApp() async {
   try {
     await _loadSavedCities();
@@ -244,87 +300,89 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showSearchDialog(bool isDark, Color textColor) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) => Dialog(
-        backgroundColor: isDark ? const Color(0xFF2A2E4D) : Colors.white,
+ void _showSearchDialog(bool isDark, Color textColor) {
+  final currentWeather =
+      _cities.isNotEmpty ? _cities[_currentCityIndex] : null;
 
-        // 🔲 SQUARE CORNERS
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+  showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.4),
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
 
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ─── TITLE ───────────────────────────
-              Text(
-                'Search City',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+
+        // 🌦 WEATHER-BASED GRADIENT
+        decoration: BoxDecoration(
+          gradient: getWeatherDialogGradient(currentWeather, isDark),
+        ),
+
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add City',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+                color: textColor,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            TextField(
+              controller: _searchController,
+              style: TextStyle(color: textColor),
+              cursorColor: textColor,
+              decoration: InputDecoration(
+                hintText: 'Enter city name',
+                hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: textColor.withOpacity(0.3)),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: textColor),
                 ),
               ),
+              onSubmitted: (value) {
+                Navigator.pop(context);
+                _searchCity(value);
+              },
+            ),
 
-              const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-              // ─── INPUT ───────────────────────────
-              TextField(
-                controller: _searchController,
-                style: TextStyle(color: textColor),
-                cursorColor: textColor,
-                decoration: InputDecoration(
-                  hintText: 'Enter city name',
-                  hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
-
-                  // FLAT INPUT — NO CURVES
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: textColor.withOpacity(0.3)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: textColor.withOpacity(0.7),
                   ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: textColor),
-                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
-                onSubmitted: (value) {
-                  Navigator.pop(context);
-                  _searchCity(value);
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              // ─── ACTIONS ─────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: textColor.withOpacity(0.7),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 16),
-                  TextButton(
-                    style: TextButton.styleFrom(foregroundColor: textColor),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _searchCity(_searchController.text);
-                    },
-                    child: const Text('Search'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                const SizedBox(width: 16),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: textColor),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _searchCity(_searchController.text);
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   void dispose() {
