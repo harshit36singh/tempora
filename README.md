@@ -6,10 +6,9 @@ A modern, minimalist **Flutter weather application** focused on clean UI, smooth
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
 
 ---
+## 📸 App Overview 
 
-## 🎥 Demo
-
-![Tempora Demo](https://github.com/harshit36singh/tempora/raw/main/assets/showcase.gif)
+![Tempora App Screenshot](lib/screenshot/tempora.png)
 ---
 
 ## 📱 Features
